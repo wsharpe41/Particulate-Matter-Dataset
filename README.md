@@ -8,6 +8,9 @@ This data is split in the database into "Site" objects which contain coordinates
 The Open Elevation API finds associated elevations with those sites. 
 The Historical Weather API adds data on wind, rh, temperature, and rain to each measurement. These variables were chosen based on previously published work indicating these variables may be helpful in better predicting future PM values. This data is available with a 5 day lag.
 
+## Dataset
+A yearly dataset with these values is being created and will be available on kaggle soon.
+
 ## Current Setup
 Currently the code shows a setup to collect the measurments from 100 sites in the US for a 10 day span in May 2023, with a max of 750 measurments per site. These values were chosen with some of the restrictions with the OpenAQ API in mind. I have seen request timeouts with my API calls when using less than 100 sites (408 response) and connection timeouts when trying to get more that 1000 measurements at once (504 response). The data range was chosen so that no one site would have more than 750 measurements in the time, and thus all data could be collected without worry.
 
