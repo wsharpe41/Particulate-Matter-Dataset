@@ -1,0 +1,39 @@
+import pandas as pd
+import numpy as np
+from scipy.interpolate import griddata
+
+def interpolate_data(df):
+    # df has three columns, longitude, latitude, and pm measurements
+    # For each longitude and latitude pair, we have a measurement
+    # For each row find the nearest longitude and latitude pair
+    # Then interpolate the measurement for that longitude and latitude pair
+    
+    # Get longitude and latitude boundaries of 48 contiguous states
+    boundaries = {
+        "min_lat": 24.660845,
+        "max_lat": 49.189787,
+        "min_lon": -124.784407,
+        "max_lon": -66.951381
+    }
+    
+    # Create a grid of points for a 0.5 degree by 0.5 degree grid
+    grid = np.mgrid[boundaries["min_lon"]:boundaries["max_lon"]:0.5, boundaries["min_lat"]:boundaries["max_lat"]:0.5]
+    grid = grid.reshape(2, -1).T
+    
+    # For each point in the grid, find the three nearest points in the df
+    # Then interpolate the measurement for that point
+    interpolate_data = []
+    for point in grid:
+        # Find the three nearest points in the df
+        nearest_points = df.iloc[(df['longitude'] - point[0]).abs().argsort()[:3]]
+        nearest_points = nearest_points.iloc[(nearest_points['latitude'] - point[1]).abs().argsort()[:3]]
+        # Interpolate the measurement for that point
+        interpolated_measurement = griddata(nearest_points[["longitude", "latitude"]], nearest_points["measurement"], point, method='linear')
+        interpolate_data.append([point[0], point[1], interpolated_measurement[0]])
+    
+    # Add the interpolated data to the df with longitude, latitude, and measurement
+    df = df.append(pd.DataFrame(interpolate_data, columns=["longitude", "latitude", "measurement"]), ignore_index=True)
+    
+    print(df.head(10))
+    print(df.shape)
+    
