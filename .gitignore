@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 pm-map/
 *.mp4
+*.db
+pm_map.db
+*.csv

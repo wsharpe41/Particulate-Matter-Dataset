@@ -10,10 +10,17 @@ import cartopy.crs as ccrs
 import cartopy
 import os
 from build_data.build_dataset import get_elevation
+from time import sleep
 
 measurement_limit = 750
 last_meas = datetime.datetime.now() - datetime.timedelta(days=10)
 first_meas = last_meas - datetime.timedelta(days=10)
+
+def set_measurement_time(start):
+    global last_meas
+    global first_meas
+    last_meas = start
+    first_meas = last_meas - datetime.timedelta(days=10)
 
 class Measurement(BaseModel):
     timestamp: datetime.datetime
@@ -37,27 +44,36 @@ class Site(BaseModel):
 
     @classmethod
     def fetch_sites(cls, country_code, limit):
-        url = f"https://api.openaq.org/v2/locations?country={country_code}&limit={limit}"
+        print(f"Getting data from {first_meas} to {last_meas}")
+        #UPDATE ME
+        url = f"https://api.openaq.org/v2/locations?country={country_code}&limit={limit}&parameter_id=2&parameter=pm25"
         headers = {"Accept": "application/json"}
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
-            print(f"Error getting data: {response.status_code}")
+            print(f"Error getting site data: {response.status_code}")
+            print(f"Error message: {response.text}")
             return []
         response_data = response.json()["results"]
         
         sites = []
+        i = 0
         for result in response_data:
-            print(result["id"])
+            if i % 100 == 0:
+                print(f"Getting site {i}")
             parameters = result["parameters"]
             last_updated = datetime.datetime.strptime(result["lastUpdated"], "%Y-%m-%dT%H:%M:%S+00:00")
             # if last_updated is before the last measurement, skip this site
             if last_updated > last_meas:
-            #if (datetime.datetime.now() - last_updated) < datetime.timedelta(days=5):
                 pm25_parameter = next((param for param in parameters if param["parameter"] == "pm25"), None)
                 if pm25_parameter:
                     loc = f"{result['coordinates']['latitude']},{result['coordinates']['longitude']}"
-                    measurements = cls.fetch_measurements(loc)
-                    #if len(measurements) == measurement_limit: 
+                    measurements = cls.fetch_measurements(loc,result["id"])
+                    # API only allows 5 calls per second, sleep for 0.05 seconds between calls
+                    sleep(.05)
+                    if len(measurements) == 0:
+                        #print(f"No measurements for site {result['id']}")
+                        i+=1
+                        continue 
                     site = cls(
                         site_id=result["id"],
                         lat=result["coordinates"]["latitude"],
@@ -65,10 +81,12 @@ class Site(BaseModel):
                         measurements=measurements
                     )
                     sites.append(site)
+            i += 1
+        print(f"Got {len(sites)} sites")
         return sites
 
     @staticmethod
-    def fetch_measurements(loc, measurement_limit=measurement_limit):
+    def fetch_measurements(loc,id, measurement_limit=measurement_limit):
         url = f"https://api.openaq.org/v2/measurements"
         headers = {"Accept": "application/json"}
         #current = datetime.datetime.now()
@@ -84,13 +102,15 @@ class Site(BaseModel):
             "parameter_id": 2,
             "parameter": "pm25",
             "coordinates": loc,
+            "location_id":id,
             "radius": 1,
             "order_by": "datetime"
         }
         
         response = requests.get(url, headers=headers, params=params)
         if response.status_code != 200:
-            print(f"Error getting data: {response.status_code}")
+            print(f"Error getting measurement data: {response.status_code} for {loc}")
+            print(f"Error message: {response.text}")
             return []
         response_data = response.json()["results"]
         measurements = []
@@ -104,9 +124,8 @@ class Site(BaseModel):
         return measurements
 
 # Specify the country code and limit for the API call
-def get_sites() -> list[Site]:
+def get_sites(limit) -> list[Site]:
     country_code = "US"
-    limit = 750
     # Fetch the sites
     sites = Site.fetch_sites(country_code, limit)
     return sites
